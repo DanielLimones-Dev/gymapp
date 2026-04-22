@@ -2,44 +2,62 @@
 // COMUNIDAD — Feed tipo red social
 // app/(app)/Comunidad/comunidad.jsx
 // ============================================
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useContext } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Modal, Image, Alert, Pressable,
-  KeyboardAvoidingView, Platform, ActivityIndicator
+  View, Text, StyleSheet, ScrollView,
+  TextInput, Image, Alert,
+  ActivityIndicator, Platform,
+  Keyboard, Dimensions
 } from 'react-native'
+import { TouchableOpacity, Pressable } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import ManagedModal from '../../../components/ManagedModal'
+import DraggableSheet from '../../../components/DraggableSheet'
+import DeleteConfirmModal from '../../../components/DeleteConfirmModal'
+import SwipeableModal from '../../../components/SwipeableModal'
+import PerfilPublicoModal from '../../../components/PerfilPublicoModal'
 import { AntDesign } from '@expo/vector-icons'
+import * as Haptics from 'expo-haptics'
+import AppleBentoCard from '../../../components/AppleBentoCard'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
+import { CoachThemeContext, hexToRgb } from '../../../lib/coachTheme'
 
+const SCREEN_HEIGHT = Dimensions.get('window').height
 const SUPABASE_URL = 'https://vlnmhwaadyejdnmgktjt.supabase.co'
 const SUPABASE_ANON = 'sb_publishable_ZHJhHtk3REmxd3EblLt6NA_9YIsoiSb'
 
-// ── Íconos por tipo (solo íconos válidos de AntDesign) ────────
-const TIPOS = [
-  { key: 'aviso',      label: 'Aviso',      icon: 'bell',     color: '#4488ff'  },
-  { key: 'logro',      label: 'Logro',       icon: 'download',    color: '#ff9900'  },
-  { key: 'tip',        label: 'Tip',         icon: 'bulb1',     color: '#00cc44'  },
-  { key: 'motivacion', label: 'Motivación',  icon: 'heart',     color: '#ff3355'  },
-  { key: 'foto',       label: 'Foto/Video',  icon: 'camera',    color: '#9933ff'  },
-]
-
-// Íconos garantizados para cada tipo
-const TIPO_ICON = {
-  aviso:      { icon: 'bell',      color: '#4488ff'  },
+// Íconos garantizados para cada tipo (colores tipo-específicos no cambian, excepto aviso)
+const TIPO_ICON_STATIC = {
   logro:      { icon: 'star',      color: '#ff9900'  },
   tip:        { icon: 'info',      color: '#00cc44'  },
   motivacion: { icon: 'heart',     color: '#ff3355'  },
   foto:       { icon: 'camera',    color: '#9933ff'  },
 }
 
+function getTipoIcon(tipo, accentColor) {
+  if (tipo === 'aviso') return { icon: 'bell', color: accentColor }
+  return TIPO_ICON_STATIC[tipo] || { icon: 'bell', color: accentColor }
+}
+
+function getTipos(accentColor) {
+  return [
+    { key: 'aviso',      label: 'Aviso',      icon: 'bell',     color: accentColor },
+    { key: 'logro',      label: 'Logro',       icon: 'download',    color: '#ff9900'  },
+    { key: 'tip',        label: 'Tip',         icon: 'bulb',     color: '#00cc44'  },
+    { key: 'motivacion', label: 'Motivación',  icon: 'heart',     color: '#ff3355'  },
+    { key: 'foto',       label: 'Foto/Video',  icon: 'camera',    color: '#9933ff'  },
+  ]
+}
+
 function Avatar({ nombre, foto, size = 38 }) {
-  if (foto) return <Image source={{ uri: foto }} style={{ width: size, height: size, borderRadius: size/2, borderWidth: 1, borderColor: '#1a3aff' }} />
+  const { accentColor, gradColors } = useContext(CoachThemeContext)
+  const acRgb = hexToRgb(accentColor)
+  if (foto) return <Image source={{ uri: foto }} style={{ width: size, height: size, borderRadius: size/2, borderWidth: 1, borderColor: accentColor }} />
   return (
-    <View style={{ width: size, height: size, borderRadius: size/2, backgroundColor: '#0a1a3f', borderWidth: 1, borderColor: '#1a3aff', justifyContent: 'center', alignItems: 'center' }}>
-      <Text style={{ color: '#4488ff', fontWeight: '900', fontSize: size * 0.38 }}>{nombre?.[0]?.toUpperCase() || '?'}</Text>
+    <View style={{ width: size, height: size, borderRadius: size/2, backgroundColor: `rgba(${acRgb},0.15)`, borderWidth: 1, borderColor: accentColor, justifyContent: 'center', alignItems: 'center' }}>
+      <Text style={{ color: accentColor, fontWeight: '900', fontSize: size * 0.38 }}>{nombre?.[0]?.toUpperCase() || '?'}</Text>
     </View>
   )
 }
@@ -54,8 +72,10 @@ function tiempoRelativo(fecha) {
 }
 
 // ── Card de publicación ───────────────────────────────────────
-function PublicacionCard({ pub, userId, esCoach, onLike, onComentar, onEliminar, comentandoId, comentario, setComentario, onEnviarComentario }) {
-  const tipo = TIPO_ICON[pub.tipo] || TIPO_ICON.aviso
+function PublicacionCard({ pub, userId, esCoach, onLike, onComentar, onEliminar, comentandoId, comentario, setComentario, onEnviarComentario, onVerPerfil }) {
+  const { accentColor } = useContext(CoachThemeContext)
+  const acRgb = hexToRgb(accentColor)
+  const tipo = getTipoIcon(pub.tipo, accentColor)
   const yaLike = pub.mis_likes?.length > 0
   const numLikes = pub.likes_count?.[0]?.count || 0
   const numComs  = pub.comentarios_count?.[0]?.count || 0
@@ -63,22 +83,27 @@ function PublicacionCard({ pub, userId, esCoach, onLike, onComentar, onEliminar,
   const esAutor = pub.autor_id === userId
 
   return (
-    <View style={styles.pubCard}>
+    <AppleBentoCard style={styles.pubCard}>
       {/* Header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <Avatar nombre={pub.autor?.nombre_completo} foto={pub.autor?.avatar_url} size={40} />
+        <TouchableOpacity activeOpacity={0.8} onPress={() => onVerPerfil?.({ id: pub.autor_id, nombre: pub.autor?.nombre_completo, avatarUrl: pub.autor?.avatar_url })}>
+          <Avatar nombre={pub.autor?.nombre_completo} foto={pub.autor?.avatar_url} size={40} />
+        </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{pub.autor?.nombre_completo || 'Coach'}</Text>
-          <Text style={{ color: '#2a4488', fontSize: 11 }}>{tiempoRelativo(pub.creado_en)}</Text>
+          <Text style={{ color: `rgba(${acRgb},0.5)`, fontSize: 11 }}>{tiempoRelativo(pub.creado_en)}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: tipo.color + '44', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: tipo.color + '11' }}>
           <AntDesign name={tipo.icon} size={12} color={tipo.color} />
           <Text style={{ color: tipo.color, fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>{pub.tipo?.toUpperCase()}</Text>
         </View>
         {esAutor && onEliminar && (
-          <TouchableOpacity onPress={() => onEliminar(pub.id)} style={{ padding: 6 }}>
+          <Pressable
+            onPress={() => onEliminar(pub.id)}
+            style={({ pressed }) => [{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,59,48,0.15)', alignItems: 'center', justifyContent: 'center' }, pressed && { opacity: 0.7, transform: [{ scale: 0.82 }] }]}
+          >
             <AntDesign name="delete" size={14} color="#ff3355" />
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
 
@@ -95,14 +120,14 @@ function PublicacionCard({ pub, userId, esCoach, onLike, onComentar, onEliminar,
       )}
 
       {/* Acciones */}
-      <View style={{ flexDirection: 'row', gap: 20, borderTopWidth: 1, borderTopColor: '#0f1a3a', paddingTop: 12 }}>
+      <View style={{ flexDirection: 'row', gap: 20, borderTopWidth: 1, borderTopColor: `rgba(${acRgb},0.15)`, paddingTop: 12 }}>
         <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }} onPress={() => onLike(pub.id, yaLike)}>
-          <AntDesign name="heart" size={17} color={yaLike ? '#ff3355' : '#2a4488'} />
-          <Text style={{ color: yaLike ? '#ff3355' : '#2a4488', fontSize: 13, fontWeight: '700' }}>{numLikes > 0 ? numLikes : 'Me gusta'}</Text>
+          <AntDesign name="heart" size={17} color={yaLike ? '#ff3355' : `rgba(${acRgb},0.5)`} />
+          <Text style={{ color: yaLike ? '#ff3355' : `rgba(${acRgb},0.5)`, fontSize: 13, fontWeight: '700' }}>{numLikes > 0 ? numLikes : 'Me gusta'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }} onPress={() => onComentar(pub.id)}>
-          <AntDesign name="message1" size={16} color={comentandoEste ? '#4488ff' : '#2a4488'} />
-          <Text style={{ color: comentandoEste ? '#4488ff' : '#2a4488', fontSize: 13, fontWeight: '700' }}>{numComs > 0 ? numComs + ' comentarios' : 'Comentar'}</Text>
+          <AntDesign name="message" size={16} color={comentandoEste ? accentColor : `rgba(${acRgb},0.5)`} />
+          <Text style={{ color: comentandoEste ? accentColor : `rgba(${acRgb},0.5)`, fontSize: 13, fontWeight: '700' }}>{numComs > 0 ? numComs + ' comentarios' : 'Comentar'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -113,8 +138,8 @@ function PublicacionCard({ pub, userId, esCoach, onLike, onComentar, onEliminar,
             <View key={c.id} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
               <Avatar nombre={c.autor?.nombre_completo} foto={c.autor?.avatar_url} size={26} />
               <View style={{ flex: 1, backgroundColor: '#08080f', borderRadius: 12, padding: 10 }}>
-                <Text style={{ color: '#4488ff', fontSize: 11, fontWeight: '800', marginBottom: 2 }}>{c.autor?.nombre_completo}</Text>
-                <Text style={{ color: '#aabbdd', fontSize: 13, lineHeight: 18 }}>{c.texto}</Text>
+                <Text style={{ color: accentColor, fontSize: 11, fontWeight: '800', marginBottom: 2 }}>{c.autor?.nombre_completo}</Text>
+                <Text style={{ color: `rgba(${acRgb},0.8)`, fontSize: 13, lineHeight: 18 }}>{c.texto}</Text>
               </View>
             </View>
           ))}
@@ -125,7 +150,7 @@ function PublicacionCard({ pub, userId, esCoach, onLike, onComentar, onEliminar,
       {comentandoEste && (
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, alignItems: 'center' }}>
           <TextInput
-            style={{ flex: 1, backgroundColor: '#08091a', borderWidth: 1.5, borderColor: '#1a3aff', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, color: '#fff', fontSize: 13 }}
+            style={{ flex: 1, backgroundColor: '#08091a', borderWidth: 1.5, borderColor: accentColor, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, color: '#fff', fontSize: 13 }}
             value={comentario}
             onChangeText={setComentario}
             placeholder="Escribe un comentario..."
@@ -133,38 +158,37 @@ function PublicacionCard({ pub, userId, esCoach, onLike, onComentar, onEliminar,
             autoFocus
           />
           <TouchableOpacity
-            style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: '#1a3aff', justifyContent: 'center', alignItems: 'center' }}
+            style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: accentColor, justifyContent: 'center', alignItems: 'center' }}
             onPress={() => onEnviarComentario(pub.id)}
           >
             <AntDesign name="check" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </AppleBentoCard>
   )
 }
 
 // ── Pantalla sin coach — splash con botón continuar ───────────
 function SinCoachSplash({ publicaciones, userId, mostrarFeed, setMostrarFeed, onLike, onComentar, comentandoId, comentario, setComentario, onEnviarComentario }) {
+  const { accentColor, gradColors } = useContext(CoachThemeContext)
+  const acRgb = hexToRgb(accentColor)
 
   if (mostrarFeed) {
     return (
-      <LinearGradient colors={['#000000', '#050510', '#0a0a1f']} style={{ flex: 1 }}>
+      <LinearGradient colors={gradColors} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}
           contentInset={{ bottom: 100 }} scrollIndicatorInsets={{ bottom: 100 }}>
           <View style={styles.iniHeader}>
-            <View style={styles.rfRow}>
-              <Text style={styles.rfR}>REP</Text><Text style={styles.rfF}>FORGE</Text>
-            </View>
-            <Text style={{ color: '#2a4488', fontSize: 11, letterSpacing: 1, fontWeight: '600', marginTop: 2 }}>Comunidad</Text>
+            <Text style={styles.rfF}>Comunidad</Text>
           </View>
           {publicaciones.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 60, gap: 14 }}>
-              <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: '#05050f', borderWidth: 1.5, borderColor: '#0f1a3a', justifyContent: 'center', alignItems: 'center' }}>
-                <AntDesign name="inbox" size={32} color="#1a2a5a" />
+              <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center' }}>
+                <AntDesign name="inbox" size={32} color="#8E8E93" />
               </View>
               <Text style={{ color: '#fff', fontSize: 20, fontWeight: '900' }}>Sin publicaciones</Text>
-              <Text style={{ color: '#2a4488', fontSize: 13, textAlign: 'center', paddingHorizontal: 30, lineHeight: 20 }}>
+              <Text style={{ color: '#8E8E93', fontSize: 13, textAlign: 'center', paddingHorizontal: 30, lineHeight: 20 }}>
                 Aún no hay publicaciones de coaches. Vuelve más tarde.
               </Text>
             </View>
@@ -184,25 +208,23 @@ function SinCoachSplash({ publicaciones, userId, mostrarFeed, setMostrarFeed, on
   }
 
   return (
-    <LinearGradient colors={['#000000', '#050510', '#0a0a1f']} style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-      <LinearGradient colors={['#05050f', '#0a0a1f']} style={{ width: '100%', borderRadius: 28, borderWidth: 1, borderColor: '#0f1a3a', padding: 32, alignItems: 'center' }}>
-        <View style={{ width: 80, height: 80, borderRadius: 22, backgroundColor: '#05051f', borderWidth: 1.5, borderColor: '#1a3aff', justifyContent: 'center', alignItems: 'center', marginBottom: 22 }}>
-          <AntDesign name="team" size={36} color="#4488ff" />
+    <LinearGradient colors={gradColors} style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+      <View style={{ width: '100%', borderRadius: 32, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 32, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+        <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: `rgba(${acRgb},0.1)`, borderWidth: 1.5, borderColor: `rgba(${acRgb},0.4)`, justifyContent: 'center', alignItems: 'center', marginBottom: 24 }}>
+          <AntDesign name="team" size={36} color={accentColor} />
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 8 }}>
-          <Text style={[styles.rfR, { fontSize: 20 }]}>REP</Text>
-          <Text style={[styles.rfF, { fontSize: 20 }]}>FORGE</Text>
-          <Text style={{ color: '#4488ff', fontSize: 14, fontWeight: '900' }}> Comunidad</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 12 }}>
+          <Text style={[styles.rfF, { fontSize: 22, color: accentColor }]}>Comunidad</Text>
         </View>
-        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900', marginBottom: 12, textAlign: 'center' }}>
-          Bienvenido a la comunidad
+        <Text style={{ color: '#fff', fontSize: 20, fontWeight: '900', marginBottom: 12, textAlign: 'center' }}>
+          Únete a la Comunidad
         </Text>
-        <Text style={{ color: '#2a4488', fontSize: 13, textAlign: 'center', lineHeight: 22, marginBottom: 28 }}>
-          Únete a un coach para ver su comunidad exclusiva, o explora las publicaciones públicas de entrenadores.
+        <Text style={{ color: '#8E8E93', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 32, fontWeight: '500' }}>
+          Conecta con un coach para acceder a contenido exclusivo, o explora las publicaciones públicas de nuestra red de entrenadores.
         </Text>
 
         <TouchableOpacity
-          style={{ width: '100%', borderRadius: 16, overflow: 'hidden', marginBottom: 16 }}
+          style={{ width: '100%', borderRadius: 20, overflow: 'hidden' }}
           onPress={async () => {
             setMostrarFeed(true)
             try {
@@ -210,20 +232,24 @@ function SinCoachSplash({ publicaciones, userId, mostrarFeed, setMostrarFeed, on
               await AsyncStorage.setItem(`comunidad_feed_${userId}`, 'true')
             } catch(e) {}
           }}
-          activeOpacity={0.85}
+          activeOpacity={0.8}
         >
-          <LinearGradient colors={['#1a3aff', '#0022cc']} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 17 }}>
-            <AntDesign name="team" size={18} color="#fff" />
-            <Text style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>Ver publicaciones</Text>
+          <LinearGradient colors={[accentColor, accentColor]} start={{x:0, y:0}} end={{x:1, y:0}} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 18 }}>
+            <AntDesign name="team" size={20} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: 0.5 }}>EXPLORAR FEED</Text>
           </LinearGradient>
         </TouchableOpacity>
-      </LinearGradient>
+      </View>
     </LinearGradient>
   )
 }
 
 // ── Componente principal exportado ────────────────────────────
 export default function Comunidad({ userId, esCoach = false }) {
+  const { accentColor, gradColors} = useContext(CoachThemeContext)
+  const acRgb = hexToRgb(accentColor)
+
+  const [kbHeight, setKbHeight]               = useState(0) // Estado del teclado
   const [publicaciones, setPublicaciones]     = useState([])
   const [perfil, setPerfil]                   = useState(null)
   const [coachId, setCoachId]                 = useState(null)
@@ -235,16 +261,63 @@ export default function Comunidad({ userId, esCoach = false }) {
   const [mediaType, setMediaType]             = useState(null) // 'image' | 'video'
   const [publicando, setPublicando]           = useState(false)
   const [comentandoId, setComentandoId]       = useState(null)
-  const [pubAEliminar, setPubAEliminar]         = useState(null)
-  const scrollRef = useRef(null)
-  const [comentario, setComentario]           = useState('')
+  const [pubAEliminar, setPubAEliminar]       = useState(null)
+  const [perfilUsuario, setPerfilUsuario]     = useState(null) // { id, nombre, avatarUrl }
+  const scrollRef   = useRef(null)
+  const [comentario, setComentario] = useState('')
+  const textoRef = useRef(null)
+  const [modalNeedsScroll, setModalNeedsScroll] = useState(false)
+  const modalContentH = useRef(0)
+  const modalContainerH = useRef(0)
 
-  // P1: Cerrar input comentario cuando el teclado se oculta
+  function cerrarModal() {
+    Keyboard.dismiss() // Forzamos el cierre del teclado
+    setKbHeight(0)     // Reseteamos altura manualmente
+    setModalNueva(false)
+    setNuevaPubli({ texto: '', tipo: 'aviso' })
+    setMediaUri(null); setMediaPreview(null); setMediaType(null)
+    setModalNeedsScroll(false)
+    modalContentH.current = 0
+    modalContainerH.current = 0
+  }
+
+  function checkModalScroll() {
+    setModalNeedsScroll(modalContentH.current > modalContainerH.current + 2)
+  }
+
+  // Manejar altura del teclado y scroll
+  useEffect(() => {
+    if (!modalNueva) return
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+
+    const subShow = Keyboard.addListener(showEvent, (e) => {
+      setKbHeight(e.endCoordinates.height)
+      setModalNeedsScroll(true)
+    })
+
+    const subHide = Keyboard.addListener(hideEvent, () => {
+      setKbHeight(0)
+      textoRef.current?.blur()
+      checkModalScroll()
+    })
+
+    return () => {
+      subShow.remove()
+      subHide.remove()
+    }
+  }, [modalNueva])
+
+  const TIPOS = getTipos(accentColor)
+
+  // Cerrar input comentario cuando el teclado se oculta
   useEffect(() => {
     const { Keyboard } = require('react-native')
     const sub = Keyboard.addListener('keyboardDidHide', () => setComentandoId(null))
     return () => sub.remove()
   }, [])
+  
   const [mostrarFeedPublico, setMostrarFeedPublico] = useState(false)
 
   // Cargar preferencia guardada al montar
@@ -270,7 +343,7 @@ export default function Comunidad({ userId, esCoach = false }) {
       .from('comunidad_publicaciones')
       .select(`
         id, autor_id, texto, tipo, media_url, media_tipo, publica, creado_en,
-        autor:autor_id(nombre_completo, avatar_url),
+        autor:autor_id(nombre_completo, avatar_url, rol),
         mis_likes:comunidad_likes(id),
         likes_count:comunidad_likes(count),
         comentarios_count:comunidad_comentarios(count),
@@ -301,7 +374,7 @@ export default function Comunidad({ userId, esCoach = false }) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       allowsEditing: false,
-      quality: 1,           // Alta resolución
+      quality: 1,           
       videoMaxDuration: 120,
     })
     if (result.canceled) return
@@ -316,17 +389,14 @@ export default function Comunidad({ userId, esCoach = false }) {
     const mime = tipo === 'video' ? 'video/mp4' : 'image/jpeg'
     const path = `${userId}/${Date.now()}.${ext}`
 
-    // Obtener JWT
     const { data: { session } } = await supabase.auth.getSession()
     const jwt = session?.access_token
     if (!jwt) throw new Error('Sin sesión activa')
 
-    // Leer archivo como blob
     const resp = await fetch(uri)
     if (!resp.ok) throw new Error('No se pudo leer el archivo')
     const blob = await resp.blob()
 
-    // Intentar con SDK de Supabase primero (más confiable)
     const { data: sdkData, error: sdkError } = await supabase.storage
       .from('comunidad')
       .upload(path, blob, { contentType: mime, upsert: true, cacheControl: '3600' })
@@ -336,7 +406,6 @@ export default function Comunidad({ userId, esCoach = false }) {
       return urlData.publicUrl
     }
 
-    // Si falla el SDK, intentar con fetch directo
     const upResp = await fetch(`${SUPABASE_URL}/storage/v1/object/comunidad/${path}`, {
       method: 'POST',
       headers: {
@@ -361,6 +430,7 @@ export default function Comunidad({ userId, esCoach = false }) {
 
   async function publicar() {
     if (!nuevaPubli.texto.trim() && !mediaUri) return
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
     setPublicando(true)
     try {
       let mediaUrl = null
@@ -388,7 +458,6 @@ export default function Comunidad({ userId, esCoach = false }) {
   }
 
   async function darLike(pubId, yaLike) {
-    // Actualizar estado local optimistamente — sin recargar pantalla
     setPublicaciones(prev => prev.map(pub => {
       if (pub.id !== pubId) return pub
       const misLikesActuales = pub.mis_likes || []
@@ -407,7 +476,6 @@ export default function Comunidad({ userId, esCoach = false }) {
         }
       }
     }))
-    // Sincronizar con Supabase en segundo plano
     if (yaLike) {
       await supabase.from('comunidad_likes').delete().eq('publicacion_id', pubId).eq('usuario_id', userId)
     } else {
@@ -417,9 +485,9 @@ export default function Comunidad({ userId, esCoach = false }) {
 
   async function comentar(pubId) {
     if (!comentario.trim()) return
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     const texto = comentario.trim()
     setComentario(''); setComentandoId(null)
-    // Optimista
     setPublicaciones(prev => prev.map(pub => {
       if (pub.id !== pubId) return pub
       const countActual = pub.comentarios_count?.[0]?.count || 0
@@ -445,12 +513,12 @@ export default function Comunidad({ userId, esCoach = false }) {
 
   async function confirmarEliminar() {
     if (!pubAEliminar) return
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
     await supabase.from('comunidad_publicaciones').delete().eq('id', pubAEliminar)
     setPubAEliminar(null)
     setPublicaciones(prev => prev.filter(p => p.id !== pubAEliminar))
   }
 
-  // Sin coach — pantalla splash
   if (!esCoach && !coachId && !cargando) {
     return (
       <SinCoachSplash
@@ -464,22 +532,25 @@ export default function Comunidad({ userId, esCoach = false }) {
   }
 
   return (
-    <LinearGradient colors={['#000000', '#050510', '#0a0a1f']} style={{ flex: 1 }}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView ref={scrollRef} contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}
-          contentInset={{ bottom: 100 }} scrollIndicatorInsets={{ bottom: 100 }}>
+    <LinearGradient colors={gradColors} style={{ flex: 1 }}>
+      
+      {/* 🛡️ ESCUDO 3: pointerEvents='none' congela todos los botones de atrás */}
+      <View style={{ flex: 1 }} pointerEvents={modalNueva ? 'none' : 'auto'}>
+        <ScrollView 
+          ref={scrollRef} 
+          scrollEnabled={!modalNueva} // 🛡️ ESCUDO 4: Congela el ScrollView físico
+          contentContainerStyle={styles.container} 
+          showsVerticalScrollIndicator={false}
+          contentInset={{ bottom: 100 }} 
+          scrollIndicatorInsets={{ bottom: 100 }}
+        >
 
           {/* HEADER */}
           <View style={styles.iniHeader}>
-            <View>
-              <View style={styles.rfRow}>
-                <Text style={styles.rfR}>REP</Text><Text style={styles.rfF}>FORGE</Text>
-              </View>
-              <Text style={{ color: '#2a4488', fontSize: 11, letterSpacing: 1, fontWeight: '600' }}>Comunidad</Text>
-            </View>
+            <Text style={styles.rfF}>Comunidad</Text>
             {esCoach && (
-              <TouchableOpacity style={{ borderRadius: 14, overflow: 'hidden' }} onPress={() => setModalNueva(true)}>
-                <LinearGradient colors={['#1a3aff', '#0022cc']} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 11 }}>
+              <TouchableOpacity style={{ borderRadius: 14, overflow: 'hidden' }} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setModalNueva(true) }}>
+                <LinearGradient colors={[accentColor, accentColor]} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 11 }}>
                   <AntDesign name="plus" size={16} color="#fff" />
                   <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13 }}>Publicar</Text>
                 </LinearGradient>
@@ -488,19 +559,19 @@ export default function Comunidad({ userId, esCoach = false }) {
           </View>
 
           {cargando ? (
-            <ActivityIndicator color="#4488ff" style={{ marginTop: 40 }} />
+            <ActivityIndicator color={accentColor} style={{ marginTop: 40 }} />
           ) : publicaciones.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 60, gap: 14 }}>
               <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: '#05050f', borderWidth: 1.5, borderColor: '#0f1a3a', justifyContent: 'center', alignItems: 'center' }}>
                 <AntDesign name="inbox" size={32} color="#1a2a5a" />
               </View>
               <Text style={{ color: '#fff', fontSize: 20, fontWeight: '900' }}>Sin publicaciones</Text>
-              <Text style={{ color: '#2a4488', fontSize: 13, textAlign: 'center', paddingHorizontal: 30, lineHeight: 20 }}>
+              <Text style={{ color: `rgba(${acRgb},0.5)`, fontSize: 13, textAlign: 'center', paddingHorizontal: 30, lineHeight: 20 }}>
                 {esCoach ? 'Comparte tips, avisos o logros con tus clientes' : 'Tu coach aún no ha publicado nada'}
               </Text>
               {esCoach && (
-                <TouchableOpacity onPress={() => setModalNueva(true)}>
-                  <LinearGradient colors={['#1a3aff', '#0022cc']} style={{ borderRadius: 14, paddingHorizontal: 24, paddingVertical: 13 }}>
+                <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setModalNueva(true) }}>
+                  <LinearGradient colors={[accentColor, accentColor]} style={{ borderRadius: 14, paddingHorizontal: 24, paddingVertical: 13 }}>
                     <Text style={{ color: '#fff', fontWeight: '900' }}>Crear primera publicación</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -512,132 +583,146 @@ export default function Comunidad({ userId, esCoach = false }) {
                 key={pub.id} pub={pub} userId={userId} esCoach={esCoach}
                 onLike={darLike}
                 onComentar={id => {
-          setComentandoId(comentandoId === id ? null : id)
-          if (comentandoId !== id) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200)
-        }}
+                  setComentandoId(comentandoId === id ? null : id)
+                  if (comentandoId !== id) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200)
+                }}
                 onEliminar={esCoach ? eliminarPubli : null}
                 comentandoId={comentandoId} comentario={comentario}
                 setComentario={setComentario} onEnviarComentario={comentar}
+                onVerPerfil={u => setPerfilUsuario(u)}
               />
             ))
           )}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
+
+      {/* MODAL PERFIL USUARIO */}
+      <SwipeableModal visible={!!perfilUsuario} onClose={() => setPerfilUsuario(null)} backgroundColor='#050510'>
+        <PerfilPublicoModal userId={perfilUsuario?.id} nombre={perfilUsuario?.nombre} avatarUrl={perfilUsuario?.avatarUrl} />
+      </SwipeableModal>
 
       {/* MODAL CONFIRMAR ELIMINAR */}
-      <Modal visible={!!pubAEliminar} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,2,15,0.92)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <View style={{ backgroundColor: '#08080f', borderRadius: 22, padding: 26, width: '100%', borderWidth: 1, borderColor: '#ff335566', alignItems: 'center' }}>
-            <View style={{ width: 54, height: 54, borderRadius: 14, backgroundColor: '#1a0008', borderWidth: 1.5, borderColor: '#ff3355', justifyContent: 'center', alignItems: 'center', marginBottom: 14 }}>
-              <AntDesign name="delete" size={24} color="#ff3355" />
-            </View>
-            <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900', marginBottom: 8 }}>Eliminar publicación</Text>
-            <Text style={{ color: '#2a4488', fontSize: 13, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
-              Esta publicación se eliminará permanentemente y no podrás recuperarla.
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
-              <Pressable
-                style={{ flex: 1, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#0f1a3a', backgroundColor: '#05050f', alignItems: 'center' }}
-                onPress={() => setPubAEliminar(null)}
-              >
-                <Text style={{ color: '#2a4488', fontWeight: '700', fontSize: 13 }}>Cancelar</Text>
-              </Pressable>
-              <Pressable
-                style={{ flex: 1, borderRadius: 12, overflow: 'hidden' }}
-                onPress={confirmarEliminar}
-              >
-                <LinearGradient colors={['#cc0022', '#880011']} style={{ padding: 14, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13 }}>Eliminar</Text>
-                </LinearGradient>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <DeleteConfirmModal
+        visible={!!pubAEliminar}
+        onCancel={() => setPubAEliminar(null)}
+        onConfirm={confirmarEliminar}
+        title="Eliminar publicación"
+        subtitle="Esta publicación se eliminará permanentemente y no podrás recuperarla."
+      />
 
       {/* MODAL NUEVA PUBLICACIÓN */}
-      <Modal visible={modalNueva} transparent animationType="slide">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={styles.overlay}>
-            <View style={styles.sheet}>
-              <View style={styles.handle} />
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '900' }}>Nueva publicación</Text>
-                <TouchableOpacity onPress={() => { setModalNueva(false); setMediaUri(null); setMediaPreview(null) }} style={styles.cerrarBtn}>
-                  <AntDesign name="close" size={18} color="#fff" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Tipo */}
-                <Text style={styles.label}>TIPO</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 18 }}>
-                  <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
-                    {TIPOS.map(t => (
-                      <TouchableOpacity
-                        key={t.key}
-                        style={[styles.tipoChip, nuevaPubli.tipo === t.key && { borderColor: t.color, backgroundColor: t.color + '22' }]}
-                        onPress={() => setNuevaPubli(p => ({ ...p, tipo: t.key }))}
-                      >
-                        <AntDesign name={t.icon === 'star' ? 'star' : t.icon === 'bell' ? 'bell' : t.icon} size={14} color={nuevaPubli.tipo === t.key ? t.color : '#2a4488'} />
-                        <Text style={{ color: nuevaPubli.tipo === t.key ? t.color : '#2a4488', fontSize: 12, fontWeight: '700' }}>{t.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
-
-                {/* Texto */}
-                <Text style={styles.label}>TEXTO (OPCIONAL SI SUBES FOTO/VIDEO)</Text>
-                <TextInput
-                  style={styles.textArea}
-                  value={nuevaPubli.texto}
-                  onChangeText={t => setNuevaPubli(p => ({ ...p, texto: t }))}
-                  placeholder="Comparte algo con tus clientes..."
-                  placeholderTextColor="#2a2a4a"
-                  multiline numberOfLines={4} textAlignVertical="top"
-                />
-
-                {/* Media */}
-                <Text style={[styles.label, { marginTop: 8 }]}>FOTO / VIDEO EN ALTA RESOLUCIÓN</Text>
-                {mediaPreview ? (
-                  <View style={{ marginBottom: 16 }}>
-                    <Image source={{ uri: mediaPreview }} style={{ width: '100%', height: 200, borderRadius: 14, backgroundColor: '#0a0a1f' }} resizeMode="cover" />
-                    <TouchableOpacity
-                      style={{ position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}
-                      onPress={() => { setMediaUri(null); setMediaPreview(null); setMediaType(null) }}
-                    >
-                      <AntDesign name="close" size={14} color="#fff" />
-                    </TouchableOpacity>
-                    {mediaType === 'video' && (
-                      <View style={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <AntDesign name="caretright" size={12} color="#fff" />
-                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>VIDEO</Text>
-                      </View>
-                    )}
-                  </View>
-                ) : (
-                  <TouchableOpacity style={styles.mediaBtn} onPress={seleccionarMedia}>
-                    <AntDesign name="camera" size={28} color="#2a4488" />
-                    <Text style={{ color: '#2a4488', fontSize: 13, fontWeight: '700', marginTop: 8 }}>Seleccionar foto o video</Text>
-                    <Text style={{ color: '#1a2a5a', fontSize: 11, marginTop: 4 }}>Hasta 2 min · Alta resolución</Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Publicar */}
-                <Pressable
-                  style={({ pressed }) => [{ borderRadius: 16, overflow: 'hidden', marginTop: 8, marginBottom: 8, opacity: publicando ? 0.7 : pressed ? 0.9 : 1 }]}
-                  onPress={publicar} disabled={publicando}
-                >
-                  <LinearGradient colors={['#1a3aff', '#0022cc']} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 17 }}>
-                    <AntDesign name="export" size={16} color="#fff" />
-                    <Text style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>{publicando ? 'Publicando...' : 'Publicar'}</Text>
-                  </LinearGradient>
-                </Pressable>
-              </ScrollView>
+      <ManagedModal visible={modalNueva} transparent animationType="none">
+        <DraggableSheet
+          onClose={cerrarModal}
+          scrollable={modalNeedsScroll || kbHeight > 0}
+          gradientColors={gradColors}
+          containerStyle={{
+            borderColor: `rgba(${acRgb},0.22)`,
+            marginBottom: kbHeight,
+            maxHeight: kbHeight > 0 ? SCREEN_HEIGHT - kbHeight - 40 : '72%'
+          }}
+          header={
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: -0.3 }}>Nueva publicación</Text>
+              <Text style={{ color: `rgba(${acRgb},0.5)`, fontSize: 11, fontWeight: '600', marginTop: 2 }}>Comparte con tus clientes</Text>
             </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          }
+        >
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+            scrollEnabled={modalNeedsScroll}
+            onContentSizeChange={(_, h) => { modalContentH.current = h; checkModalScroll() }}
+            onLayout={(e) => { modalContainerH.current = e.nativeEvent.layout.height; checkModalScroll() }}
+          >
+            {/* Tipo */}
+            <Text style={[styles.label, { color: `rgba(${acRgb},0.6)` }]}>TIPO DE PUBLICACIÓN</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
+                {TIPOS.map(t => (
+                  <TouchableOpacity
+                    key={t.key}
+                    style={[
+                      styles.tipoChip,
+                      { borderColor: `rgba(${acRgb},0.12)`, backgroundColor: `rgba(${acRgb},0.04)` },
+                      nuevaPubli.tipo === t.key && { borderColor: t.color, backgroundColor: t.color + '22' },
+                    ]}
+                    onPress={() => setNuevaPubli(p => ({ ...p, tipo: t.key }))}
+                  >
+                    <AntDesign name={t.icon} size={14} color={nuevaPubli.tipo === t.key ? t.color : `rgba(${acRgb},0.45)`} />
+                    <Text style={{ color: nuevaPubli.tipo === t.key ? t.color : `rgba(${acRgb},0.45)`, fontSize: 12, fontWeight: '700' }}>{t.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            {/* Texto */}
+            <Text style={[styles.label, { color: `rgba(${acRgb},0.6)` }]}>MENSAJE</Text>
+            <TextInput
+              ref={textoRef}
+              style={[styles.textArea, {
+                borderColor: `rgba(${acRgb},0.18)`,
+                backgroundColor: `rgba(${acRgb},0.04)`,
+                color: '#fff',
+              }]}
+              value={nuevaPubli.texto}
+              onChangeText={t => setNuevaPubli(p => ({ ...p, texto: t }))}
+              placeholder="Escribe algo para tus clientes..."
+              placeholderTextColor={`rgba(${acRgb},0.25)`}
+              multiline numberOfLines={4} textAlignVertical="top"
+            />
+
+            {/* Media */}
+            <Text style={[styles.label, { color: `rgba(${acRgb},0.6)` }]}>FOTO / VIDEO</Text>
+            {mediaPreview ? (
+              <View style={{ marginBottom: 16 }}>
+                <Image source={{ uri: mediaPreview }} style={{ width: '100%', height: 200, borderRadius: 18, backgroundColor: '#0a0a1f' }} resizeMode="cover" />
+                <TouchableOpacity
+                  style={{ position: 'absolute', top: 10, right: 10, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.75)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' }}
+                  onPress={() => { setMediaUri(null); setMediaPreview(null); setMediaType(null) }}
+                >
+                  <AntDesign name="close" size={14} color="#fff" />
+                </TouchableOpacity>
+                {mediaType === 'video' && (
+                  <View style={{ position: 'absolute', bottom: 10, left: 10, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <AntDesign name="caretright" size={12} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>VIDEO</Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.mediaBtn, { borderColor: `rgba(${acRgb},0.22)`, backgroundColor: `rgba(${acRgb},0.04)` }]}
+                onPress={seleccionarMedia}
+              >
+                <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: `rgba(${acRgb},0.10)`, borderWidth: 1, borderColor: `rgba(${acRgb},0.25)`, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                  <AntDesign name="camera" size={24} color={accentColor} />
+                </View>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>Seleccionar foto o video</Text>
+                <Text style={{ color: `rgba(${acRgb},0.4)`, fontSize: 11, marginTop: 4 }}>Hasta 2 min · Alta resolución</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Botón publicar */}
+            <Pressable
+              style={({ pressed }) => [{ borderRadius: 18, overflow: 'hidden', marginTop: 8, marginBottom: 8, opacity: publicando ? 0.65 : pressed ? 0.88 : 1 }]}
+              onPress={publicar} disabled={publicando}
+            >
+              <LinearGradient
+                colors={[accentColor, accentColor + 'cc']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 17 }}
+              >
+                <AntDesign name={publicando ? 'loading1' : 'export'} size={17} color="#fff" />
+                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 15, letterSpacing: 0.3 }}>
+                  {publicando ? 'Publicando...' : 'Publicar'}
+                </Text>
+              </LinearGradient>
+            </Pressable>
+          </ScrollView>
+        </DraggableSheet>
+      </ManagedModal>
     </LinearGradient>
   )
 }
@@ -646,16 +731,18 @@ const styles = StyleSheet.create({
   container:  { padding: 20, paddingTop: 56, paddingBottom: 130 },
   iniHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   rfRow:      { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 4 },
-  rfR:        { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: 2 },
-  rfF:        { fontSize: 22, fontWeight: '900', color: '#4488ff', letterSpacing: 2 },
-  pubCard:    { backgroundColor: '#05050f', borderWidth: 1, borderColor: '#0f1a3a', borderRadius: 20, padding: 18, marginBottom: 16 },
-  pubTexto:   { color: '#ddeeff', fontSize: 15, lineHeight: 24, marginBottom: 14 },
-  overlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
-  sheet:      { backgroundColor: '#05050f', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: '#0f1a3a', paddingHorizontal: 20, paddingBottom: 40, maxHeight: '92%' },
-  handle:     { width: 40, height: 4, backgroundColor: '#1a2a5a', borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 16 },
-  cerrarBtn:  { width: 32, height: 32, borderRadius: 10, backgroundColor: '#0a0a1f', borderWidth: 1, borderColor: '#0f1a3a', justifyContent: 'center', alignItems: 'center' },
-  label:      { color: '#2a4488', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 10 },
-  tipoChip:   { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, borderColor: '#0f1a3a', backgroundColor: '#08080f' },
-  textArea:   { backgroundColor: '#08091a', borderWidth: 1.5, borderColor: '#0f1e40', borderRadius: 14, padding: 14, color: '#fff', fontSize: 14, lineHeight: 22, minHeight: 110, marginBottom: 16 },
-  mediaBtn:   { borderWidth: 1.5, borderColor: '#0f1e40', borderStyle: 'dashed', borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 16, backgroundColor: '#08080f' },
+  rfR:        { fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: 1 },
+  rfF:        { fontSize: 24, fontWeight: '900', color: '#4488ff', letterSpacing: 1 },
+
+  pubCard:    { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 24, padding: 20, marginBottom: 16 },
+  pubTexto:   { color: '#fff', fontSize: 15, lineHeight: 24, marginBottom: 14, fontWeight: '500' },
+
+  sheet:      { borderTopLeftRadius: 36, borderTopRightRadius: 36, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 44, maxHeight: '88%' },
+  handle:     { width: 44, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  cerrarBtn:  { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+
+  label:      { fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 10, textTransform: 'uppercase' },
+  tipoChip:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  textArea:   { borderWidth: 1, borderRadius: 18, padding: 16, fontSize: 15, lineHeight: 22, minHeight: 110, marginBottom: 18, fontWeight: '500' },
+  mediaBtn:   { borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 22, paddingVertical: 28, alignItems: 'center', marginBottom: 18 },
 })

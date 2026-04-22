@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Escritorio/Daniel/NOTAS_DANIEL/**)",
+      "Bash(npx supabase:*)",
+      "Bash(node:*)",
+      "Bash(head -5 grep -n \"styles\\\\.\" \"D:/Escritorio/Daniel/ReactNative/gymapp2/app/\\(app\\)/CoachDashboard.jsx\")",
+      "Bash(tail:*)",
+      "Bash(\"D:/Escritorio/Daniel/ReactNative/gymapp2/app/\\(app\\)/CoachDashboard.jsx\")",
+      "Bash(head -10 grep -n \"createStyles\\\\|const styles\" \"D:/Escritorio/Daniel/ReactNative/gymapp2/app/\\(app\\)/rutinas/RutinasScreens.jsx\")",
+      "Bash(head -15 grep -n \"#4488ff\\\\|#1a3aff\\\\|#0022cc\\\\|rgba\\(68,136,255\\\\|rgba\\(68, 136, 255\" \"D:/Escritorio/Daniel/ReactNative/gymapp2/app/\\(app\\)/comunidad/Comunidad.jsx\")",
+      "Bash(head -5 grep -rn \"CoachThemeContext\" \"D:/Escritorio/Daniel/ReactNative/gymapp2/app/\\(app\\)/progreso/Progreso.jsx\")",
+      "Bash(head -5 grep -rn \"CoachThemeContext\" \"D:/Escritorio/Daniel/ReactNative/gymapp2/app/\\(app\\)/comunidad/Comunidad.jsx\")",
+      "Bash(grep:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(\"D:\\\\Escritorio\\\\Daniel\\\\NOTAS_DANIEL\\\\Proyectos\\\\gymapp2\\\\Bugs Corregidos.md\":*)",
+      "Bash(node -e \"console.log\\(require\\(''./package.json''\\).dependencies[''react-native-toast-message'']\\)\")",
+      "Bash(npx expo:*)",
+      "Bash(npm install:*)"
+    ]
+  }
+}

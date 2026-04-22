@@ -1,0 +1,5 @@
+git add . (prepara los nuevos cambios)
+
+git commit -m "tu mensaje aquí" (le pone nombre a la actualización)
+
+git push (los manda a la nube, ¡ya sin escribir nada extra!)

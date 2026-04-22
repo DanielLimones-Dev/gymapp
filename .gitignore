@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# Sentry (contiene auth token)
+sentry.properties
+
 # Expo
 .expo/
 dist/

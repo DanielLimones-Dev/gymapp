@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "gymapp2",
+    "name": "repforge",
     "slug": "gymapp2",
+    "scheme": "com.repforge.app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,24 +11,49 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#050510"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.repforge.app"
     },
     "android": {
       "adaptiveIcon": {
+        "package": "com.repforge.app",
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#050510"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.repforge.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
-    ]
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#000000"
+        }
+      ],
+      [
+        "@sentry/react-native",
+        {
+          "organization": "daniel-developer",
+          "project": "react-native",
+          "enableSourcemapsUpload": false
+        }
+      ],
+      "@stripe/stripe-react-native"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e999ab7c-65e9-4c67-bdfd-888df99c6c4e"
+      }
+    },
+    "owner": "danielmlimones"
   }
 }

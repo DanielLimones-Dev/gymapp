@@ -49,7 +49,7 @@ export default function ForgotPassword({ navigation }) {
                 <TextInput
                   style={styles.input}
                   placeholder="tu@correo.com"
-                  placeholderTextColor="#2a2a4a"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -89,18 +89,18 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   title: { fontSize: 34, fontWeight: '900', color: '#fff', marginBottom: 12, lineHeight: 40 },
   titleBlue: { color: '#4488ff', textShadowColor: 'rgba(68,136,255,0.4)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 },
-  desc: { color: '#2a4488', fontSize: 14, marginBottom: 36, lineHeight: 22 },
-  label: { color: '#2a4488', fontSize: 10, letterSpacing: 2, marginBottom: 6, fontWeight: '700' },
+  desc: { color: '#8E8E93', fontSize: 14, marginBottom: 36, lineHeight: 22, fontWeight: '500' },
+  label: { color: '#8E8E93', fontSize: 10, letterSpacing: 2, marginBottom: 6, fontWeight: '800', textTransform: 'uppercase' },
   inputWrapper: {
-    borderWidth: 1, borderColor: '#0f1a3a', borderRadius: 14,
-    backgroundColor: '#05050f', marginBottom: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.03)', marginBottom: 20,
   },
-  input: { color: '#fff', padding: 16, fontSize: 15 },
-  buttonWrapper: { borderRadius: 14, overflow: 'hidden' },
-  button: { padding: 17, alignItems: 'center', borderRadius: 14 },
+  input: { color: '#fff', padding: 16, fontSize: 15, fontWeight: '500' },
+  buttonWrapper: { borderRadius: 16, overflow: 'hidden' },
+  button: { padding: 17, alignItems: 'center', borderRadius: 16 },
   buttonText: { color: '#fff', fontWeight: '900', fontSize: 14, letterSpacing: 3 },
-  sentBox: { alignItems: 'center', gap: 16 },
+  sentBox: { alignItems: 'center', gap: 16, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 24, padding: 28 },
   sentIcon: { fontSize: 52, marginBottom: 8 },
   sentTitle: { fontSize: 24, fontWeight: '900', color: '#fff' },
-  sentDesc: { color: '#2a4488', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 16 },
+  sentDesc: { color: '#8E8E93', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 16, fontWeight: '500' },
 })

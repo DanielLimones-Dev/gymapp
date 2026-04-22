@@ -2,22 +2,28 @@
 // CHAT — Mensajería coach ↔ cliente
 // app/(app)/chat/chat.jsx
 // ============================================
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useContext } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Image, Pressable, KeyboardAvoidingView, Platform,
-  ActivityIndicator
+  View, Text, StyleSheet, ScrollView,
+  TextInput, Image, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, Animated, PanResponder
 } from 'react-native'
+import { TouchableOpacity, Pressable } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { AntDesign } from '@expo/vector-icons'
+import * as Haptics from 'expo-haptics'
+import AppleBentoCard from '../../../components/AppleBentoCard'
 import { supabase } from '../../../lib/supabase'
+import { CoachThemeContext, hexToRgb } from '../../../lib/coachTheme'
+import { enviarPushMensaje } from '../../../lib/notifications'
 
-function Avatar({ nombre, foto, size = 40 }) {
-  if (foto) return <Image source={{ uri: foto }} style={{ width: size, height: size, borderRadius: size/2, borderWidth: 1.5, borderColor: '#1a3aff' }} />
+function Avatar({ nombre, foto, size = 40, accentColor = '#4488ff' }) {
+  const acRgb = hexToRgb(accentColor)
+  if (foto) return <Image source={{ uri: foto }} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 1.5, borderColor: `rgba(${acRgb},0.4)` }} />
   return (
-    <View style={{ width: size, height: size, borderRadius: size/2, backgroundColor: '#0a1a3f', borderWidth: 1.5, borderColor: '#1a3aff', justifyContent: 'center', alignItems: 'center' }}>
-      <Text style={{ color: '#4488ff', fontWeight: '900', fontSize: size * 0.38 }}>{nombre?.[0]?.toUpperCase() || '?'}</Text>
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: `rgba(${acRgb},0.10)`, borderWidth: 1.5, borderColor: `rgba(${acRgb},0.35)`, justifyContent: 'center', alignItems: 'center' }}>
+      <Text style={{ color: accentColor, fontWeight: '900', fontSize: size * 0.38 }}>{nombre?.[0]?.toUpperCase() || '?'}</Text>
     </View>
   )
 }
@@ -25,16 +31,18 @@ function Avatar({ nombre, foto, size = 40 }) {
 function tiempoRelativo(fecha) {
   const diff = (Date.now() - new Date(fecha)) / 1000
   if (diff < 60) return 'Ahora'
-  if (diff < 3600) return `${Math.floor(diff/60)}m`
-  if (diff < 86400) return `${Math.floor(diff/3600)}h`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`
   return new Date(fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
 }
 
 // ── Lista de conversaciones ───────────────────────────────────
-function ListaConversaciones({ userId, esCoach, onSeleccionar }) {
+function ListaConversaciones({ userId, esCoach, onSeleccionar, showHeader = true }) {
+  const { accentColor, gradColors } = useContext(CoachThemeContext)
+  const styles = createStyles(accentColor, hexToRgb(accentColor), gradColors[0])
   const [conversaciones, setConversaciones] = useState([])
-  const [cargando, setCargando]             = useState(true)
-  const [perfil, setPerfil]                 = useState(null)
+  const [cargando, setCargando] = useState(true)
+  const [perfil, setPerfil] = useState(null)
 
   useFocusEffect(useCallback(() => {
     cargar()
@@ -42,9 +50,12 @@ function ListaConversaciones({ userId, esCoach, onSeleccionar }) {
     const canal = supabase
       .channel(`inbox_${userId}`)
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'mensajes',
-        filter: `receptor_id=eq.${userId}`
-      }, () => cargar())
+        event: 'INSERT', schema: 'public', table: 'mensajes'
+      }, payload => {
+        if (payload.new.emisor_id === userId || payload.new.receptor_id === userId) {
+          cargar()
+        }
+      })
       .subscribe()
     return () => supabase.removeChannel(canal)
   }, []))
@@ -62,7 +73,7 @@ function ListaConversaciones({ userId, esCoach, onSeleccionar }) {
       const convs = await Promise.all((clientes || []).map(async cliente => {
         const { data: msgs } = await supabase
           .from('mensajes')
-          .select('texto, creado_en, leido, emisor_id')
+          .select('contenido, creado_en, leido, emisor_id')
           .or(`and(emisor_id.eq.${userId},receptor_id.eq.${cliente.id}),and(emisor_id.eq.${cliente.id},receptor_id.eq.${userId})`)
           .order('creado_en', { ascending: false })
           .limit(1)
@@ -77,50 +88,71 @@ function ListaConversaciones({ userId, esCoach, onSeleccionar }) {
       setConversaciones(convs)
     } else {
       if (p?.coach_id) {
-        const { data: coach } = await supabase
+        const { data: coach, error: errCoach } = await supabase
           .from('perfiles').select('id, nombre_completo, avatar_url, rol').eq('id', p.coach_id).single()
-        const { data: msgs } = await supabase
+        if (errCoach) {}
+
+        const { data: msgs, error: errMsgs } = await supabase
           .from('mensajes')
-          .select('texto, creado_en, leido, emisor_id')
+          .select('contenido, creado_en, leido, emisor_id')
           .or(`and(emisor_id.eq.${userId},receptor_id.eq.${p.coach_id}),and(emisor_id.eq.${p.coach_id},receptor_id.eq.${userId})`)
           .order('creado_en', { ascending: false })
           .limit(1)
-        const { count } = await supabase
+        if (errMsgs) {}
+
+        const { count, error: errCount } = await supabase
           .from('mensajes')
           .select('id', { count: 'exact', head: true })
           .eq('receptor_id', userId)
           .eq('emisor_id', p.coach_id)
           .eq('leido', false)
-        if (coach) setConversaciones([{ ...coach, ultimoMensaje: msgs?.[0], noLeidos: count || 0 }])
+        if (errCount) {}
+
+        if (coach) {
+          setConversaciones([{ ...coach, ultimoMensaje: msgs?.[0], noLeidos: count || 0 }])
+        } else {
+        }
+      } else {
       }
     }
     setCargando(false)
   }
 
   if (cargando) return (
-    <LinearGradient colors={['#000000', '#050510', '#0a0a1f']} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator color="#4488ff" size="large" />
+    <LinearGradient colors={gradColors} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator color={accentColor} size="large" />
     </LinearGradient>
   )
 
   const sinCoach = !esCoach && !perfil?.coach_id
 
   return (
-    <LinearGradient colors={['#000000', '#050510', '#0a0a1f']} style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
+      {showHeader && (
+        <View style={[styles.header, { paddingHorizontal: 20 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            {perfil?.team_logo_url ? (
+              <Image source={{ uri: perfil.team_logo_url }} style={{ width: 44, height: 44, borderRadius: 12 }} />
+            ) : (
+              <View style={[styles.emptyIcon, { width: 44, height: 44, borderRadius: 12 }]}>
+                <AntDesign name="message" size={20} color={accentColor} />
+              </View>
+            )}
+            <View>
+              <Text style={styles.rfR}>{perfil?.team_name || 'Mensajes'}</Text>
+              <Text style={styles.headerSub}>BANDEJA DE ENTRADA</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}
         contentInset={{ bottom: 100 }} scrollIndicatorInsets={{ bottom: 100 }}>
-
-        <View style={styles.header}>
-          <View style={styles.rfRow}>
-            <Text style={styles.rfR}>REP</Text><Text style={styles.rfF}>FORGE</Text>
-          </View>
-          <Text style={styles.headerSub}>Mensajes</Text>
-        </View>
 
         {sinCoach ? (
           <View style={{ alignItems: 'center', paddingVertical: 60, gap: 16 }}>
             <View style={styles.emptyIcon}>
-              <AntDesign name="message1" size={32} color="#4488ff" />
+              <AntDesign name="message" size={32} color={accentColor} />
             </View>
             <Text style={styles.emptyTitle}>Sin coach asignado</Text>
             <Text style={styles.emptySub}>
@@ -130,7 +162,7 @@ function ListaConversaciones({ userId, esCoach, onSeleccionar }) {
         ) : conversaciones.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: 60, gap: 16 }}>
             <View style={styles.emptyIcon}>
-              <AntDesign name="message1" size={32} color="#1a2a5a" />
+              <AntDesign name="message" size={32} color={accentColor} />
             </View>
             <Text style={styles.emptyTitle}>{esCoach ? 'Sin clientes aún' : 'Sin mensajes'}</Text>
             <Text style={styles.emptySub}>
@@ -143,10 +175,10 @@ function ListaConversaciones({ userId, esCoach, onSeleccionar }) {
               key={conv.id}
               style={styles.convCard}
               onPress={() => onSeleccionar(conv)}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
               <View style={{ position: 'relative' }}>
-                <Avatar nombre={conv.nombre_completo} foto={conv.avatar_url} size={52} />
+                <Avatar nombre={conv.nombre_completo} foto={conv.avatar_url} size={52} accentColor={accentColor} />
                 {conv.noLeidos > 0 && (
                   <View style={styles.badge}>
                     <Text style={{ color: '#fff', fontSize: 9, fontWeight: '900' }}>{conv.noLeidos}</Text>
@@ -155,16 +187,16 @@ function ListaConversaciones({ userId, esCoach, onSeleccionar }) {
               </View>
               <View style={{ flex: 1, marginLeft: 14 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: conv.noLeidos > 0 ? '900' : '700' }}>
+                  <Text style={[styles.convNombre, conv.noLeidos > 0 && styles.convNombreActivo]}>
                     {conv.nombre_completo || 'Usuario'}
                   </Text>
                   {conv.ultimoMensaje && (
-                    <Text style={{ color: '#1a2a5a', fontSize: 11 }}>{tiempoRelativo(conv.ultimoMensaje.creado_en)}</Text>
+                    <Text style={styles.convTime}>{tiempoRelativo(conv.ultimoMensaje.creado_en)}</Text>
                   )}
                 </View>
-                <Text numberOfLines={1} style={{ color: conv.noLeidos > 0 ? '#aabbdd' : '#2a4488', fontSize: 13 }}>
+                <Text numberOfLines={1} style={[styles.convPreview, conv.noLeidos > 0 && styles.convPreviewActivo]}>
                   {conv.ultimoMensaje
-                    ? (conv.ultimoMensaje.emisor_id === userId ? 'Tú: ' : '') + conv.ultimoMensaje.texto
+                    ? (conv.ultimoMensaje.emisor_id === userId ? 'Tú: ' : '') + conv.ultimoMensaje.contenido
                     : 'Sin mensajes aún — ¡saluda!'}
                 </Text>
               </View>
@@ -172,16 +204,31 @@ function ListaConversaciones({ userId, esCoach, onSeleccionar }) {
           ))
         )}
       </ScrollView>
-    </LinearGradient>
+    </View>
   )
 }
 
 // ── Conversación individual ───────────────────────────────────
 function ChatConversacion({ userId, interlocutor, onVolver }) {
+  const { accentColor, gradColors } = useContext(CoachThemeContext)
+  const styles = createStyles(accentColor, hexToRgb(accentColor), gradColors[0])
   const [mensajes, setMensajes] = useState([])
-  const [texto, setTexto]       = useState('')
+  const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
-  const scrollRef               = useRef(null)
+  const scrollRef = useRef(null)
+
+  // PanResponder para swipe en el header
+  const headerPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, { dy }) => dy > 8,
+      onPanResponderRelease: (_, { dy, vy }) => {
+        if (dy > 40 || vy > 0.5) {
+          onVolver()
+        }
+      },
+    })
+  ).current
 
   useEffect(() => {
     cargarMensajes()
@@ -190,12 +237,18 @@ function ChatConversacion({ userId, interlocutor, onVolver }) {
     const canal = supabase
       .channel(`chat_${[userId, interlocutor.id].sort().join('_')}`)
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'mensajes',
-        filter: `or(and(emisor_id=eq.${userId},receptor_id=eq.${interlocutor.id}),and(emisor_id=eq.${interlocutor.id},receptor_id=eq.${userId}))`
+        event: 'INSERT', schema: 'public', table: 'mensajes'
       }, payload => {
-        setMensajes(prev => [...prev, payload.new])
-        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80)
-        if (payload.new.emisor_id === interlocutor.id) marcarLeidos()
+        const m = payload.new
+        if ((m.emisor_id === userId && m.receptor_id === interlocutor.id) ||
+          (m.emisor_id === interlocutor.id && m.receptor_id === userId)) {
+          setMensajes(prev => {
+            if (prev.some(msg => msg.id === m.id)) return prev
+            return [...prev, m]
+          })
+          setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80)
+          if (m.emisor_id === interlocutor.id) marcarLeidos()
+        }
       })
       .subscribe()
 
@@ -223,6 +276,7 @@ function ChatConversacion({ userId, interlocutor, onVolver }) {
 
   async function enviar() {
     if (!texto.trim() || enviando) return
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     const txt = texto.trim()
     const ahora = new Date().toISOString()
     const tempId = 'temp_' + Date.now()
@@ -230,27 +284,36 @@ function ChatConversacion({ userId, interlocutor, onVolver }) {
     // Optimista — mostrar inmediatamente
     setMensajes(prev => [...prev, {
       id: tempId, emisor_id: userId, receptor_id: interlocutor.id,
-      texto: txt, creado_en: ahora, leido: false,
+      contenido: txt, creado_en: ahora, leido: false,
     }])
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50)
     setEnviando(true)
     const { data, error } = await supabase.from('mensajes').insert({
-      emisor_id:   userId,
+      emisor_id: userId,
       receptor_id: interlocutor.id,
-      texto:       txt,
-      creado_en:   ahora,
-      leido:       false,
+      contenido: txt,
+      creado_en: ahora,
+      leido: false,
     }).select().single()
-    // Reemplazar el mensaje temporal con el real
-    if (data) {
-      setMensajes(prev => prev.map(m => m.id === tempId ? data : m))
+
+    if (error) {
+      // Remover el mensaje falso si falla
+      setMensajes(prev => prev.filter(m => m.id !== tempId))
+      Alert.alert('Error al enviar', error.message || 'No se pudo guardar el mensaje. Intenta de nuevo.')
+    } else if (data) {
+      // Reemplazar el mensaje temporal con el real (o quitar el temporal si el Realtime ya puso el real)
+      setMensajes(prev => {
+        if (prev.some(m => m.id === data.id)) return prev.filter(m => m.id !== tempId)
+        return prev.map(m => m.id === tempId ? data : m)
+      })
+      enviarPushMensaje(interlocutor.id, userId, txt)
     }
     setEnviando(false)
   }
 
   // Separadores de fecha entre mensajes
   const itemsConFecha = []
-  let fechaAnterior   = null
+  let fechaAnterior = null
   mensajes.forEach(msg => {
     const f = new Date(msg.creado_en).toDateString()
     if (f !== fechaAnterior) {
@@ -261,16 +324,16 @@ function ChatConversacion({ userId, interlocutor, onVolver }) {
   })
 
   return (
-    <LinearGradient colors={['#000000', '#050510', '#0a0a1f']} style={{ flex: 1 }}>
-      {/* Header */}
-      <View style={styles.chatHeader}>
+    <LinearGradient colors={gradColors} style={{ flex: 1 }}>
+      {/* Header con swipe */}
+      <View style={styles.chatHeader} {...headerPan.panHandlers}>
         <TouchableOpacity onPress={onVolver} style={{ padding: 10 }}>
-          <AntDesign name="left" size={20} color="#4488ff" />
+          <AntDesign name="left" size={20} color={accentColor} />
         </TouchableOpacity>
-        <Avatar nombre={interlocutor.nombre_completo} foto={interlocutor.avatar_url} size={38} />
+        <Avatar nombre={interlocutor.nombre_completo} foto={interlocutor.avatar_url} size={38} accentColor={accentColor} />
         <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>{interlocutor.nombre_completo}</Text>
-          <Text style={{ color: '#2a4488', fontSize: 11 }}>
+          <Text style={styles.chatHeaderName}>{interlocutor.nombre_completo}</Text>
+          <Text style={styles.chatHeaderRole}>
             {interlocutor.rol === 'coach' ? '🏋️ Tu coach' : interlocutor.rol === 'cliente' ? '👤 Cliente' : '💬 Conversación'}
           </Text>
         </View>
@@ -291,7 +354,7 @@ function ChatConversacion({ userId, interlocutor, onVolver }) {
           {itemsConFecha.map(item => {
             if (item.tipo === 'fecha') return (
               <View key={item.key} style={{ alignItems: 'center', marginVertical: 14 }}>
-                <Text style={{ color: '#1a2a5a', fontSize: 11, fontWeight: '700', backgroundColor: '#08080f', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 10 }}>
+                <Text style={styles.dateSep}>
                   {item.fecha.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
                 </Text>
               </View>
@@ -299,16 +362,16 @@ function ChatConversacion({ userId, interlocutor, onVolver }) {
             const esMio = item.emisor_id === userId
             return (
               <View key={item.id} style={{ flexDirection: 'row', justifyContent: esMio ? 'flex-end' : 'flex-start', marginBottom: 6, alignItems: 'flex-end', gap: 6 }}>
-                {!esMio && <Avatar nombre={interlocutor.nombre_completo} foto={interlocutor.avatar_url} size={28} />}
+                {!esMio && <Avatar nombre={interlocutor.nombre_completo} foto={interlocutor.avatar_url} size={28} accentColor={accentColor} />}
                 <View style={[styles.burbuja, esMio ? styles.burbujaMia : styles.burbujaOtro, { maxWidth: '75%' }]}>
-                  <Text style={{ color: esMio ? '#fff' : '#ddeeff', fontSize: 14, lineHeight: 21 }}>{item.texto}</Text>
+                  <Text style={[styles.msgText, { color: esMio ? '#fff' : '#ddeeff' }]}>{item.contenido}</Text>
                   <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                    <Text style={{ color: esMio ? 'rgba(255,255,255,0.5)' : '#2a4488', fontSize: 10 }}>
+                    <Text style={[styles.msgTime, { color: esMio ? 'rgba(255,255,255,0.5)' : '#8E8E93' }]}>
                       {new Date(item.creado_en).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                     {esMio && (
                       <AntDesign
-                        name={item.leido ? 'checkcircle' : 'checkcircleo'}
+                        name={item.leido ? 'check' : 'check'}
                         size={11}
                         color={item.leido ? '#00cc44' : 'rgba(255,255,255,0.4)'}
                       />
@@ -327,7 +390,7 @@ function ChatConversacion({ userId, interlocutor, onVolver }) {
             value={texto}
             onChangeText={setTexto}
             placeholder="Escribe un mensaje..."
-            placeholderTextColor="#2a2a4a"
+            placeholderTextColor="#4a4a6a"
             multiline maxLength={500}
           />
           <Pressable
@@ -335,8 +398,8 @@ function ChatConversacion({ userId, interlocutor, onVolver }) {
             disabled={!texto.trim() || enviando}
             style={({ pressed }) => [styles.sendBtn, { opacity: texto.trim() ? (pressed ? 0.8 : 1) : 0.3 }]}
           >
-            <LinearGradient colors={['#1a3aff', '#0022cc']} style={styles.sendGradient}>
-              <AntDesign name="arrowup" size={19} color="#fff" />
+            <LinearGradient colors={[accentColor, gradColors[1]]} style={styles.sendGradient}>
+              <AntDesign name="arrow-up" size={19} color="#fff" />
             </LinearGradient>
           </Pressable>
         </View>
@@ -357,27 +420,39 @@ export default function Chat({ userId, esCoach = false, interlocutorInicial = nu
   if (seleccionado) {
     return <ChatConversacion userId={userId} interlocutor={seleccionado} onVolver={() => setSeleccionado(null)} />
   }
-  return <ListaConversaciones userId={userId} esCoach={esCoach} onSeleccionar={setSeleccionado} />
+  return <ListaConversaciones userId={userId} esCoach={esCoach} showHeader={!esCoach} onSeleccionar={(conv) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSeleccionado(conv) }} />
 }
 
-const styles = StyleSheet.create({
-  container:  { padding: 20, paddingTop: 56, paddingBottom: 130 },
-  header:     { marginBottom: 20 },
-  rfRow:      { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 4 },
-  rfR:        { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: 2 },
-  rfF:        { fontSize: 22, fontWeight: '900', color: '#4488ff', letterSpacing: 2 },
-  headerSub:  { color: '#2a4488', fontSize: 11, letterSpacing: 1, fontWeight: '600' },
-  emptyIcon:  { width: 72, height: 72, borderRadius: 20, backgroundColor: '#05051f', borderWidth: 1.5, borderColor: '#1a3aff', justifyContent: 'center', alignItems: 'center' },
-  emptyTitle: { color: '#fff', fontSize: 20, fontWeight: '900' },
-  emptySub:   { color: '#2a4488', fontSize: 13, textAlign: 'center', paddingHorizontal: 32, lineHeight: 21 },
-  convCard:   { flexDirection: 'row', alignItems: 'center', backgroundColor: '#05050f', borderWidth: 1, borderColor: '#0f1a3a', borderRadius: 18, padding: 16, marginBottom: 10 },
-  badge:      { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#ff3355', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: '#000' },
-  chatHeader: { flexDirection: 'row', alignItems: 'center', paddingTop: 52, paddingHorizontal: 12, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#0f1a3a', backgroundColor: '#000' },
-  burbuja:    { borderRadius: 20, paddingHorizontal: 15, paddingVertical: 11 },
-  burbujaMia: { backgroundColor: '#1a3aff', borderBottomRightRadius: 5 },
-  burbujaOtro:{ backgroundColor: '#08080f', borderWidth: 1, borderColor: '#0f1a3a', borderBottomLeftRadius: 5 },
-  inputRow:   { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 14, paddingVertical: 12, paddingBottom: 28, borderTopWidth: 1, borderTopColor: '#0f1a3a', backgroundColor: '#000' },
-  inputBox:   { flex: 1, backgroundColor: '#08091a', borderWidth: 1.5, borderColor: '#0f1e40', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 11, color: '#fff', fontSize: 14, maxHeight: 100 },
-  sendBtn:    { borderRadius: 22, overflow: 'hidden' },
-  sendGradient: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
-})
+function createStyles(accent, acRgb, bg0) {
+  return StyleSheet.create({
+    container: { padding: 20, paddingTop: 16, paddingBottom: 130 },
+    header: { paddingVertical: 16, marginBottom: 0 },
+    rfRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 4 },
+    rfR: { fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: 1 },
+    rfF: { fontSize: 24, fontWeight: '900', color: accent, letterSpacing: 1 },
+    headerSub: { color: '#8E8E93', fontSize: 11, letterSpacing: 1, fontWeight: '600' },
+    emptyIcon: { width: 72, height: 72, borderRadius: 20, backgroundColor: `rgba(${acRgb},0.08)`, borderWidth: 1.5, borderColor: `rgba(${acRgb},0.35)`, justifyContent: 'center', alignItems: 'center' },
+    emptyTitle: { color: '#fff', fontSize: 20, fontWeight: '900' },
+    emptySub: { color: '#8E8E93', fontSize: 13, textAlign: 'center', paddingHorizontal: 32, lineHeight: 21 },
+    convCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: 16, marginBottom: 10, overflow: 'hidden' },
+    convNombre: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    convNombreActivo: { fontWeight: '900' },
+    convTime: { color: '#8E8E93', fontSize: 11 },
+    convPreview: { color: '#8E8E93', fontSize: 13 },
+    convPreviewActivo: { color: '#aabbdd' },
+    badge: { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#ff3355', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: '#000' },
+    chatHeader: { flexDirection: 'row', alignItems: 'center', paddingTop: 16, paddingHorizontal: 12, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', backgroundColor: bg0 + 'f2' },
+    chatHeaderName: { color: '#fff', fontSize: 15, fontWeight: '900' },
+    chatHeaderRole: { color: '#8E8E93', fontSize: 11 },
+    burbuja: { borderRadius: 20, paddingHorizontal: 15, paddingVertical: 11 },
+    burbujaMia: { backgroundColor: accent, borderBottomRightRadius: 5 },
+    burbujaOtro: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderBottomLeftRadius: 5 },
+    dateSep: { color: '#8E8E93', fontSize: 11, fontWeight: '700', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 10 },
+    msgText: { fontSize: 14, lineHeight: 21 },
+    msgTime: { fontSize: 10 },
+    inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 14, paddingVertical: 12, paddingBottom: 28, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', backgroundColor: bg0 + 'f2' },
+    inputBox: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 11, color: '#fff', fontSize: 14, maxHeight: 100 },
+    sendBtn: { borderRadius: 22, overflow: 'hidden' },
+    sendGradient: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+  })
+}

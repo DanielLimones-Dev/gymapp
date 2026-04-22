@@ -1,29 +1,33 @@
 // ════════════════════════════════════════════════════════════════
-// SwipeableModal v3 — Swipe SOLO desde el handle
-// No compite con scroll interno. Funciona iOS + Android.
-// app/(app)/SwipeableModal.jsx
+// SwipeableModal v5 — Zona de captura invisible en la parte superior
+// La zona superior (onStartShouldSetPanResponder: true) garantiza
+// swipe desde cualquier punto horizontal sin icono visual.
+// El cuerpo mantiene el comportamiento original para no bloquear scroll.
 // ════════════════════════════════════════════════════════════════
 import { useRef, useEffect, useState } from 'react'
 import {
   Modal, View, Animated, PanResponder,
   Dimensions, StyleSheet
 } from 'react-native'
+import { openModal, closeModal, getCount } from '../lib/modalState'
 
 const { height: SCREEN_H } = Dimensions.get('window')
 
-export default function SwipeableModal({ visible, onClose, children, backgroundColor = '#000' }) {
+export default function SwipeableModal({ visible, onClose, children, backgroundColor = '#000', captureHeight = 28, noBodySwipe = false }) {
   const translateY = useRef(new Animated.Value(SCREEN_H)).current
   const [show, setShow] = useState(false)
+  const myLevel = useRef(0)
 
   useEffect(() => {
     if (visible) {
+      openModal()
+      myLevel.current = getCount()
       setShow(true)
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
-        tension: 60,
-        friction: 12,
-        overshootClamping: true,
+        tension: 72,
+        friction: 14,
       }).start()
     } else {
       close()
@@ -31,9 +35,10 @@ export default function SwipeableModal({ visible, onClose, children, backgroundC
   }, [visible])
 
   function close() {
+    closeModal()
     Animated.timing(translateY, {
       toValue: SCREEN_H,
-      duration: 250,
+      duration: 260,
       useNativeDriver: true,
     }).start(() => {
       setShow(false)
@@ -46,11 +51,14 @@ export default function SwipeableModal({ visible, onClose, children, backgroundC
     onClose()
   }
 
-  // PanResponder SOLO para el handle — no interfiere con scroll
-  const handlePan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, { dy }) => Math.abs(dy) > 5,
+  function isTopModal() { return getCount() <= myLevel.current }
+
+  function buildPan(alwaysCapture) {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => alwaysCapture && isTopModal(),
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_, { dx, dy }) => isTopModal() && dy > 10 && dy > Math.abs(dx) * 1.5,
+      onMoveShouldSetPanResponderCapture: () => false,
       onPanResponderMove: (_, { dy }) => {
         if (dy > 0) translateY.setValue(dy)
       },
@@ -58,7 +66,7 @@ export default function SwipeableModal({ visible, onClose, children, backgroundC
         if (dy > 80 || vy > 0.8) {
           Animated.timing(translateY, {
             toValue: SCREEN_H,
-            duration: 220,
+            duration: 240,
             useNativeDriver: true,
           }).start(() => {
             translateY.setValue(SCREEN_H)
@@ -70,13 +78,24 @@ export default function SwipeableModal({ visible, onClose, children, backgroundC
             toValue: 0,
             useNativeDriver: true,
             tension: 80,
-            friction: 12,
-            overshootClamping: true,
+            friction: 14,
           }).start()
         }
       },
+      onPanResponderTerminate: () => {
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start()
+      },
     })
-  ).current
+  }
+
+  // Zona superior: siempre captura (sin icono, solo área táctil)
+  const topPan  = useRef(buildPan(true)).current
+  // Cuerpo: solo captura si el gesto es claramente hacia abajo
+  const bodyPan = useRef(buildPan(false)).current
 
   if (!show) return null
 
@@ -88,21 +107,17 @@ export default function SwipeableModal({ visible, onClose, children, backgroundC
       onRequestClose={handleClose}
       statusBarTranslucent
     >
-      {/* Fondo oscuro — tap para cerrar */}
       <View style={styles.overlay}>
         <Animated.View
-          style={[
-            styles.sheet,
-            { backgroundColor, transform: [{ translateY }] }
-          ]}
+          style={[styles.sheet, { backgroundColor, transform: [{ translateY }] }]}
         >
-          {/* HANDLE — única zona de swipe */}
-          <View style={styles.handleContainer} {...handlePan.panHandlers}>
+          {/* Zona de captura con handle visual */}
+          <View style={[styles.captureZone, { height: captureHeight }]} {...topPan.panHandlers}>
             <View style={styles.handle} />
           </View>
 
-          {/* Contenido sin interferencia */}
-          <View style={{ flex: 1, overflow: 'hidden' }}>
+          {/* Contenido */}
+          <View style={{ flex: 1, overflow: 'hidden' }} {...(noBodySwipe ? {} : bodyPan.panHandlers)}>
             {children}
           </View>
         </Animated.View>
@@ -123,20 +138,16 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 22,
     overflow: 'hidden',
   },
-  handleContainer: {
+  captureZone: {
     width: '100%',
+    height: 28,
     alignItems: 'center',
-    paddingTop: 10,
-    paddingBottom: 20,
-    backgroundColor: 'transparent',
-    zIndex: 99,
-    // Zona grande para facilitar el swipe
-    minHeight: 50,
+    justifyContent: 'center',
   },
   handle: {
-    width: 48,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#2a3a6a',
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
 })
