@@ -16,7 +16,7 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { Animated, Easing } from 'react-native'
 
-const SPRING    = { tension: 180, friction: 18, useNativeDriver: true }
+const SPRING    = { tension: 300, friction: 24, useNativeDriver: true }
 const EXIT_MS   = 220   // duración de la salida
 
 const CardEntrance = forwardRef(function CardEntrance({
@@ -29,8 +29,8 @@ const CardEntrance = forwardRef(function CardEntrance({
 }, ref) {
   const viewRef    = useRef(null)
   const isTriggerMode = trigger !== undefined
-  const translateY = useRef(new Animated.Value(animate ? 6 : 0)).current
-  const scale      = useRef(new Animated.Value(animate ? 0.96 : 1)).current
+  const translateY = useRef(new Animated.Value(animate ? 3 : 0)).current
+  const scale      = useRef(new Animated.Value(animate ? 0.98 : 1)).current
   // 0.001 en lugar de 0 — en Android, opacity exactamente 0 con native driver bloquea touch events
   // En trigger mode: empieza en 0.001 para evitar flash de 1 frame al montar con el Modal visible
   const opacity    = useRef(new Animated.Value((animate || isTriggerMode) ? 0.001 : 1)).current
@@ -108,10 +108,10 @@ const CardEntrance = forwardRef(function CardEntrance({
   // Modo 1 — al montar (cards nuevos)
   useEffect(() => {
     if (animate && trigger === undefined) {
-      lastEnterState.current = { ty: 6, sc: 0.96 }
+      lastEnterState.current = { ty: 3, sc: 0.98 }
       opacity.setValue(0.001)
-      translateY.setValue(6)
-      scale.setValue(0.96)
+      translateY.setValue(3)
+      scale.setValue(0.98)
       const t = setTimeout(() => {
         Animated.parallel([
           Animated.spring(scale,      { toValue: 1, ...SPRING }),
