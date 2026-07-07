@@ -190,7 +190,7 @@ function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a2e' }}>
       <Animated.View style={{ flex: 1, opacity: fadeIn }}>
-      <StripeProvider publishableKey="pk_test_REEMPLAZAR_CON_TU_CLAVE_PUBLICA_STRIPE">
+      <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_KEY || 'pk_test_51TP7n9LoWg1zgxMWKIO19x3jbpCkckbmZCGe6IXGvSe6DgPhbMdQnKTGstMore2rXJVanOrF7fqKhH8EuK75HAZB00AVriMhZm'}>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!session ? (
