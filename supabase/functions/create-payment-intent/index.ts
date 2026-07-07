@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
 
     const intent = await stripe.paymentIntents.create({
       amount,
-      currency: 'usd',
+      currency: 'mxn',
       metadata: { userId, plan, tipo: esCliente ? 'cliente' : 'coach' },
     })
 
