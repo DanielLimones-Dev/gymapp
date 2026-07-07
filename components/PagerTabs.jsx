@@ -47,8 +47,8 @@ export default function PagerTabs({ tabs, initialIndex = 0, accentColor = '#4488
     isAnimating.value = true
     setIndex(i)
     translateX.value = withTiming(-i * W, { duration: 220 }, (finished) => {
+      isAnimating.value = false
       if (finished) {
-        isAnimating.value = false
         runOnJS(onAnimDone)(i)
       }
     })
@@ -86,8 +86,8 @@ export default function PagerTabs({ tabs, initialIndex = 0, accentColor = '#4488
         currentIndex.value = next
         isAnimating.value = true
         translateX.value = withTiming(-next * W, { duration: 180 }, (finished) => {
+          isAnimating.value = false
           if (finished) {
-            isAnimating.value = false
             runOnJS(onAnimDone)(next)
           }
         })

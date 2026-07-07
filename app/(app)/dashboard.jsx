@@ -1569,7 +1569,16 @@ function RutinasTabAdmin() {
           initialParams={{ esCoach: true }}
           options={({ route }) => ({ animationEnabled: !route.params?.isDoubleTap })}
           listeners={({ navigation }) => ({
-            focus: () => { rutinasNavigation.ref = navigation },
+            focus: () => { 
+              rutinasNavigation.ref = navigation
+              if (rutinasNavigation.pendingNav) {
+                const { bloqueId, diaKey, userId, noAnim } = rutinasNavigation.pendingNav
+                rutinasNavigation.pendingNav = null
+                setTimeout(() => {
+                  navigation.navigate('Ejercicios', { bloqueId, diaKey, userId, noAnim })
+                }, 100)
+              }
+            },
           })}
         />
         <RutinaStack.Screen name="ListaBloques" component={ListaBloques} options={{}}
@@ -1726,12 +1735,12 @@ export default function Dashboard({ userId }) {
   // Se ejecuta cada vez que cambie vistaOverride para re-registrar cuando vuelvas del modo coach
   useEffect(() => {
     // En modo coach, CoachDashboard registra su propio goToTab — no sobreescribir
-    if (vistaOverride !== 'coach') {
+    // En modo admin, SuperAdminDashboard registra su propio goToTab — no sobreescribir
+    if (vistaOverride !== 'coach' && vistaOverride !== 'admin') {
       rutinasNavigation.goToTab = (i) => tabSwitcherRef.current?.(i)
     }
     return () => {
-      // Solo limpiar si estamos cambiando a modo coach
-      if (vistaOverride === 'coach') {
+      if (vistaOverride === 'coach' || vistaOverride === 'admin') {
         rutinasNavigation.goToTab = null
       }
     }
