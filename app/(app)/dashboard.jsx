@@ -556,7 +556,7 @@ function InicioScreen() {
         contentInset={{ bottom: 100 }} scrollIndicatorInsets={{ bottom: 100 }}
         keyboardShouldPersistTaps="handled">
 
-        <StaggerChildren trigger={!cargandoInicio} delay={80} step={90} translateYStart={32} springTension={85} springFriction={13} opacityDuration={380}>
+        <StaggerChildren trigger={!cargandoInicio} delay={60} step={70} translateYStart={10} springTension={120} springFriction={18} opacityDuration={250}>
 
         {/* HEADER */}
         <View style={styles.iniHeader}>
@@ -1973,23 +1973,23 @@ const styles = StyleSheet.create({
   ajustesCoachSub: { color: '#8E8E93', fontSize: 11, fontWeight: '500' },
 
   // Facturación
-  ajustesPlanCard: { borderRadius: 20, overflow: 'hidden', marginBottom: 12 },
-  ajustesPlanGradient: { padding: 18, borderWidth: 1, borderColor: 'rgba(255,102,0,0.3)', borderRadius: 20 },
-  ajustesPlanHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  ajustesPlanNombre: { color: '#fff', fontSize: 18, fontWeight: '900' },
-  ajustesPlanBadge: { backgroundColor: '#00cc44', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  ajustesPlanBadgeText: { color: '#fff', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  ajustesPlanPrecio: { color: '#ff6600', fontSize: 28, fontWeight: '900' },
-  ajustesPlanPeriodo: { color: '#8E8E93', fontSize: 14, fontWeight: '600' },
-  ajustesPlanVence: { color: '#8E8E93', fontSize: 11, marginTop: 4, fontWeight: '500' },
-  ajustesFeaturesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  ajustesFeatureItem: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,204,68,0.1)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  ajustesPlanCard: { borderRadius: 24, overflow: 'hidden', marginBottom: 14, elevation: 8, shadowColor: '#ff6600', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 },
+  ajustesPlanGradient: { padding: 20, borderWidth: 0.5, borderColor: 'rgba(255,102,0,0.25)', borderRadius: 24 },
+  ajustesPlanHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  ajustesPlanNombre: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  ajustesPlanBadge: { backgroundColor: '#00cc44', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  ajustesPlanBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
+  ajustesPlanPrecio: { color: '#ff6600', fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
+  ajustesPlanPeriodo: { color: '#8E8E93', fontSize: 15, fontWeight: '600' },
+  ajustesPlanVence: { color: '#8E8E93', fontSize: 12, marginTop: 6, fontWeight: '500' },
+  ajustesFeaturesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16, marginTop: 4 },
+  ajustesFeatureItem: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,204,68,0.08)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 0.5, borderColor: 'rgba(0,204,68,0.15)' },
   ajustesFeatureText: { color: '#00cc44', fontSize: 11, fontWeight: '700' },
-  ajustesRenovarBtn: { borderRadius: 14, overflow: 'hidden', marginBottom: 8 },
-  ajustesRenovarGradient: { padding: 14, alignItems: 'center' },
-  ajustesRenovarText: { color: '#fff', fontWeight: '900', fontSize: 13 },
-  ajustesCancelarSubBtn: { padding: 10, alignItems: 'center' },
-  ajustesCancelarSubText: { color: '#8E8E93', fontSize: 12, textDecorationLine: 'underline', fontWeight: '500' },
+  ajustesRenovarBtn: { borderRadius: 16, overflow: 'hidden', marginBottom: 8, elevation: 4, shadowColor: '#ff6600', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 6 },
+  ajustesRenovarGradient: { padding: 15, alignItems: 'center' },
+  ajustesRenovarText: { color: '#fff', fontWeight: '800', fontSize: 14, letterSpacing: 0.5 },
+  ajustesCancelarSubBtn: { padding: 12, alignItems: 'center' },
+  ajustesCancelarSubText: { color: '#8E8E93', fontSize: 12, textDecorationLine: 'underline', fontWeight: '600' },
   ajustesLinkRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
   ajustesLinkText: { color: '#ddeeff', fontSize: 14, fontWeight: '600' },
   ajustesAcercaRow: { alignItems: 'center', paddingVertical: 12, marginBottom: 8 },
@@ -1997,12 +1997,12 @@ const styles = StyleSheet.create({
   ajustesAcercaLogoF: { color: '#4488ff', fontSize: 18, fontWeight: '900' },
   ajustesAcercaVersion: { color: '#8E8E93', fontSize: 12, marginTop: 4, fontWeight: '500' },
   ajustesAcercaSub: { color: '#8E8E93', fontSize: 11, textAlign: 'center', marginTop: 4, fontWeight: '500' },
-  ajustesPlanLibre: { color: '#8E8E93', fontSize: 13, marginBottom: 12, textAlign: 'center', fontWeight: '500' },
-  ajustesPlanOpcion: { borderRadius: 16, overflow: 'hidden', marginBottom: 8 },
-  ajustesPlanOpcionGradient: { padding: 16 },
+  ajustesPlanLibre: { color: '#8E8E93', fontSize: 14, marginBottom: 16, textAlign: 'center', fontWeight: '600', letterSpacing: 0.3 },
+  ajustesPlanOpcion: { borderRadius: 20, overflow: 'hidden', marginBottom: 10, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8 },
+  ajustesPlanOpcionGradient: { padding: 18 },
   ajustesPlanOpcionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  ajustesPlanOpcionNombre: { color: '#fff', fontSize: 16, fontWeight: '900' },
-  ajustesPlanOpcionPrecio: { color: '#fff', fontSize: 20, fontWeight: '900' },
+  ajustesPlanOpcionNombre: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },
+  ajustesPlanOpcionPrecio: { color: '#fff', fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
   iniBellBadge: { position: 'absolute', top: 0, right: 0, width: 7, height: 7, borderRadius: 4, backgroundColor: '#4488ff' },
 
   // Mensajes button

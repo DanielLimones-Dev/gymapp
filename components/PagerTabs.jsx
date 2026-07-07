@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { View, Dimensions, StyleSheet, Pressable } from 'react-native'
 import Animated, {
   useSharedValue, useAnimatedStyle,
@@ -28,7 +28,6 @@ export default function PagerTabs({ tabs, initialIndex = 0, accentColor = '#4488
   const pillAnim      = useSharedValue(initialIndex)
   const currentIndex  = useSharedValue(initialIndex)
   const isAnimating   = useSharedValue(false)
-  const swipePreloaded = useSharedValue(-1)
 
   const stripStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -38,22 +37,15 @@ export default function PagerTabs({ tabs, initialIndex = 0, accentColor = '#4488
     transform: [{ translateX: pillAnim.value * tabWidth + pillPad }],
   }))
 
-  // JS-thread callbacks invocados vía runOnJS
   const onAnimDone = useCallback((i) => {
     setVisited(prev => prev.has(i) ? prev : new Set([...prev, i]))
   }, [])
 
-  const preloadTab = useCallback((i) => {
-    setVisited(prev => prev.has(i) ? prev : new Set([...prev, i]))
-  }, [])
-
-  // Navegación programática (tab press / switcherRef externo)
   const goTo = useCallback((i) => {
     if (i < 0 || i >= tabsLen) return
     currentIndex.value = i
     isAnimating.value = true
     setIndex(i)
-
     translateX.value = withTiming(-i * W, { duration: 220 }, (finished) => {
       if (finished) {
         isAnimating.value = false
@@ -65,27 +57,14 @@ export default function PagerTabs({ tabs, initialIndex = 0, accentColor = '#4488
 
   if (switcherRef) switcherRef.current = goTo
 
-  // Gesto en UI thread — sin pasar por JS durante el drag
-  const panGesture = Gesture.Pan()
+  const panGesture = useMemo(() => Gesture.Pan()
     .activeOffsetX([-10, 10])
     .failOffsetY([-15, 15])
-    .onStart(() => {
-      swipePreloaded.value = -1
-    })
     .onUpdate((e) => {
       if (modalCountSV.value > 0 || isAnimating.value) return
       const cur = currentIndex.value
       const raw = -cur * W + e.translationX
       translateX.value = Math.max(-(tabsLen - 1) * W, Math.min(0, raw))
-
-      // Precargar destino una vez para que no aparezca en blanco
-      const dest = e.translationX < -20 && cur < tabsLen - 1 ? cur + 1
-                 : e.translationX > 20 && cur > 0 ? cur - 1
-                 : -1
-      if (dest >= 0 && dest !== swipePreloaded.value) {
-        swipePreloaded.value = dest
-        runOnJS(preloadTab)(dest)
-      }
     })
     .onEnd((e) => {
       if (isAnimating.value) return
@@ -115,28 +94,28 @@ export default function PagerTabs({ tabs, initialIndex = 0, accentColor = '#4488
         pillAnim.value = withSpring(next, { stiffness: 280, damping: 30 })
         runOnJS(setIndex)(next)
       } else {
-        // Snap back
         translateX.value = withTiming(-cur * W, { duration: 180 })
       }
-    })
+    }), [tabsLen, onAnimDone])
 
   const rgb = hexToRgb(accentColor)
+
+  const tabList = useMemo(() => tabs.map((tab, i) => (
+    <View key={i} style={[styles.page, { backgroundColor: pageBackground }]}>
+      {visited.has(i) && <tab.component />}
+    </View>
+  )), [tabs, pageBackground, visited])
 
   return (
     <View style={[styles.root, { backgroundColor: pageBackground }]}>
       <GestureDetector gesture={panGesture}>
         <View style={[styles.pagerArea, { overflow: 'hidden' }]}>
           <Animated.View style={[styles.strip, { width: W * tabsLen }, stripStyle]}>
-            {tabs.map((tab, i) => (
-              <View key={i} style={[styles.page, { backgroundColor: pageBackground }]}>
-                {visited.has(i) && <tab.component />}
-              </View>
-            ))}
+            {tabList}
           </Animated.View>
         </View>
       </GestureDetector>
 
-      {/* ====== TAB BAR ====== */}
       <View style={styles.barOuter}>
         <View style={[styles.barBody, {
           backgroundColor: `rgba(${rgb}, 0.04)`,

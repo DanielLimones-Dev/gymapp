@@ -15,10 +15,10 @@ import Animated, {
 const { width: SW, height: SH } = Dimensions.get('screen');
 
 const SPRING_CONFIG_SUAVE = {
-  damping: 28,
-  stiffness: 140,
-  mass: 0.9,
-  overshootClamping: true,
+  damping: 18,
+  stiffness: 300,
+  mass: 0.6,
+  overshootClamping: false,
 };
 
 const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);

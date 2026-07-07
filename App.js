@@ -11,8 +11,12 @@ import { AntDesign, FontAwesome } from '@expo/vector-icons'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import * as SplashScreen from 'expo-splash-screen'
 import { StripeProvider } from '@stripe/stripe-react-native'
-import { View, Text, DeviceEventEmitter } from 'react-native'
+import { View, Text, Animated, DeviceEventEmitter } from 'react-native'
+
+// Evitar que el splash nativo se oculte hasta que la app esté lista
+SplashScreen.preventAutoHideAsync()
 import { registrarPushToken } from './lib/notifications'
 import { supabase } from './lib/supabase'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -73,6 +77,26 @@ function App() {
   const [fontsLoaded] = useFonts({ ...AntDesign.font, ...FontAwesome.font })
   const [session, setSession] = useState(null)
   const [showSplash, setShowSplash] = useState(true)
+  const fadeIn = useState(new Animated.Value(0))[0]
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false)
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Fade in del contenido principal
+  useEffect(() => {
+    if (!showSplash && !cargando && fontsLoaded) {
+      fadeIn.setValue(0)
+      Animated.timing(fadeIn, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start()
+    }
+  }, [showSplash, cargando, fontsLoaded])
   const [perfilCompleto, setPerfilCompleto] = useState(null)
   const [rol, setRol] = useState(null)
   const [cargando, setCargando] = useState(true)
@@ -106,8 +130,6 @@ function App() {
   }
 
   useEffect(() => {
-    setTimeout(() => setShowSplash(false), 2800)
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       if (session?.user) {
@@ -156,10 +178,18 @@ function App() {
     }
   }, [])
 
+  // Ocultar splash nativo cuando la app esté lista
+  useEffect(() => {
+    if (!showSplash && !cargando && fontsLoaded) {
+      SplashScreen.hideAsync()
+    }
+  }, [showSplash, cargando, fontsLoaded])
+
   if (!fontsLoaded || showSplash || cargando) return <Splash />
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a2e' }}>
+      <Animated.View style={{ flex: 1, opacity: fadeIn }}>
       <StripeProvider publishableKey="pk_test_REEMPLAZAR_CON_TU_CLAVE_PUBLICA_STRIPE">
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -183,6 +213,7 @@ function App() {
       </NavigationContainer>
       </StripeProvider>
       <Toast config={toastConfig} />
+      </Animated.View>
     </GestureHandlerRootView>
   )
 }

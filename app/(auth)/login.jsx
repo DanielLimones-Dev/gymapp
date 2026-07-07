@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase'
 import Toast from 'react-native-toast-message'
 import { AntDesign, FontAwesome } from '@expo/vector-icons'
 import TermsModal from '../../components/TermsModal'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 function RFLogo({ size = 64 }) {
   return (
@@ -35,6 +36,23 @@ export default function Login({ navigation }) {
   const [termsRead, setTermsRead]         = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [showTerms, setShowTerms]         = useState(false)
+
+  // Cargar términos aceptados al montar
+  useEffect(() => {
+    AsyncStorage.getItem('repforge_terms_accepted').then(val => {
+      if (val === 'true') {
+        setTermsRead(true)
+        setTermsAccepted(true)
+      }
+    })
+  }, [])
+
+  // Guardar cuando se acepten
+  useEffect(() => {
+    if (termsAccepted) {
+      AsyncStorage.setItem('repforge_terms_accepted', 'true')
+    }
+  }, [termsAccepted])
 
   async function signInWithGoogle() {
     if (!termsAccepted) {

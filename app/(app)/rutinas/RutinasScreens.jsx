@@ -1454,8 +1454,9 @@ function RutinasTab() {
       <RutinaStack.Navigator
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: gradColors[0] },
-          animation: 'none'
+          cardStyle: { backgroundColor: 'transparent' },
+          animation: 'fade',
+          animationDuration: 150,
         }}
       >
         <RutinaStack.Screen name="ListaProgramas" component={ListaProgramas} />
