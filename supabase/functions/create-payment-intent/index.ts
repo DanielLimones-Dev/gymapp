@@ -1,18 +1,11 @@
 import Stripe from 'https://esm.sh/stripe@14'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, { apiVersion: '2024-04-10' })
 
-const PRECIOS_COACH: Record<string, number> = {
-  starter: 19900,   // $199 MXN
-  pro:     39900,  // $399 MXN
-  elite:   79900,  // $799 MXN
-}
-
-const PRECIOS_CLIENTE: Record<string, number> = {
-  mensual:    19900,   // $199 MXN
-  trimestral: 49900,  // $499 MXN
-  anual:      159900,  // $1,599 MXN
-}
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,7 +18,6 @@ Deno.serve(async (req) => {
   try {
     const { plan, userId, tipo, verify } = await req.json()
 
-    // Verificar PaymentIntent existente
     if (verify) {
       const intent = await stripe.paymentIntents.retrieve(verify)
       return new Response(JSON.stringify({ status: intent.status }), {
@@ -33,20 +25,34 @@ Deno.serve(async (req) => {
       })
     }
 
-    const esCliente = tipo === 'cliente'
-    const precios   = esCliente ? PRECIOS_CLIENTE : PRECIOS_COACH
-    const amount    = precios[plan]
+    const clave = tipo === 'cliente' ? 'planes_cliente' : 'planes_coach'
+    const { data } = await supabase
+      .from('configuracion_ia')
+      .select('valor')
+      .eq('clave', clave)
+      .single()
 
-    if (!amount) {
+    if (!data?.valor) {
+      return new Response(JSON.stringify({ error: `No se encontraron planes: ${clave}` }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const planes = JSON.parse(data.valor)
+    const planData = planes.find((p: any) => p.key === plan)
+
+    if (!planData) {
       return new Response(JSON.stringify({ error: `Plan desconocido: ${plan}` }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
+    const amount = Math.round(planData.precio * 100)
+
     const intent = await stripe.paymentIntents.create({
       amount,
       currency: 'mxn',
-      metadata: { userId, plan, tipo: esCliente ? 'cliente' : 'coach' },
+      metadata: { userId, plan, tipo: tipo || 'coach' },
     })
 
     return new Response(JSON.stringify({ clientSecret: intent.client_secret }), {
