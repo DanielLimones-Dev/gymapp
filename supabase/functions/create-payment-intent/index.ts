@@ -3,15 +3,15 @@ import Stripe from 'https://esm.sh/stripe@14'
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, { apiVersion: '2024-04-10' })
 
 const PRECIOS_COACH: Record<string, number> = {
-  starter: 999,   // $9.99
-  pro:     1999,  // $19.99
-  elite:   3999,  // $39.99
+  starter: 19900,   // $199 MXN
+  pro:     39900,  // $399 MXN
+  elite:   79900,  // $799 MXN
 }
 
 const PRECIOS_CLIENTE: Record<string, number> = {
-  mensual:    999,   // $9.99
-  trimestral: 2499,  // $24.99
-  anual:      7999,  // $79.99
+  mensual:    19900,   // $199 MXN
+  trimestral: 49900,  // $499 MXN
+  anual:      159900,  // $1,599 MXN
 }
 
 const corsHeaders = {

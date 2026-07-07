@@ -886,7 +886,7 @@ function InicioScreen() {
                                     </View>
                                   </View>
                                   <Text style={styles.ajustesPlanPrecio}>
-                                    ${suscripcion.precio || '9.99'} <Text style={styles.ajustesPlanPeriodo}>/{suscripcion.periodo || 'mes'}</Text>
+                                    ${suscripcion.precio || '199'} <Text style={styles.ajustesPlanPeriodo}>/{suscripcion.periodo || 'mes'}</Text>
                                   </Text>
                                   {suscripcion.fecha_vencimiento && (
                                     <Text style={styles.ajustesPlanVence}>
@@ -916,9 +916,9 @@ function InicioScreen() {
                             <>
                               <Text style={styles.ajustesPlanLibre}>Estás en el plan gratuito</Text>
                               {[
-                                { nombre: 'Pro Mensual', precio: '$9.99', periodo: '/mes', color: ['#1a3aff', '#0022cc'] },
-                                { nombre: 'Pro Anual', precio: '$79.99', periodo: '/año', badge: '33% OFF', color: ['#ff6600', '#cc4400'] },
-                                { nombre: 'Coach', precio: '$29.99', periodo: '/mes', badge: 'COACH', color: ['#9933ff', '#6600cc'] },
+                                { nombre: 'Pro Mensual', precio: '$199', periodo: '/mes', color: ['#1a3aff', '#0022cc'] },
+                                { nombre: 'Pro Anual', precio: '$1,599', periodo: '/año', badge: '33% OFF', color: ['#ff6600', '#cc4400'] },
+                                { nombre: 'Coach', precio: '$599', periodo: '/mes', badge: 'COACH', color: ['#9933ff', '#6600cc'] },
                               ].map(plan => (
                                 <TouchableOpacity 
                                   key={plan.nombre} 
